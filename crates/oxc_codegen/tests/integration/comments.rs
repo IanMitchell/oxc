@@ -184,6 +184,13 @@ catch(e) {
             // Inline comment between catch param and body
             "try { console.log('test'); }
 catch (err) /* v8 ignore next */ { console.error(err); }",
+            // Multiple comments between catch param and body
+            "try { something(); }
+catch (err) /* c8 ignore next */ /* istanbul ignore next */ { handle(err); }",
+            // Line comment between catch param and body
+            "try { something(); }
+catch (err) // v8 ignore next
+{ handle(err); }",
         ];
 
         snapshot("coverage", &cases);

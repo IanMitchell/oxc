@@ -120,3 +120,24 @@ try {
 	console.error(err);
 }
 
+########## 21
+try { something(); }
+catch (err) /* c8 ignore next */ /* istanbul ignore next */ { handle(err); }
+----------
+try {
+	something();
+} catch (err) /* c8 ignore next *//* istanbul ignore next */ {
+	handle(err);
+}
+
+########## 22
+try { something(); }
+catch (err) // v8 ignore next
+{ handle(err); }
+----------
+try {
+	something();
+} catch (err) {
+	handle(err);
+}
+
