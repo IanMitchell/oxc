@@ -10,14 +10,14 @@ use crate::{AstNode, context::LintContext, rule::Rule, utils::is_jsx_fragment};
 
 fn jsx_fragments_diagnostic(span: Span, mode: FragmentMode) -> OxcDiagnostic {
     let msg = if mode == FragmentMode::Element {
-        "Standard form for React fragments is preferred"
+        "Standard form for React fragments is preferred."
     } else {
-        "Shorthand form for React fragments is preferred"
+        "Shorthand form for React fragments is preferred."
     };
     let help = if mode == FragmentMode::Element {
-        "Use <React.Fragment></React.Fragment> instead of <></>"
+        "Use `<React.Fragment></React.Fragment>` instead of `<></>`."
     } else {
-        "Use <></> instead of <React.Fragment></React.Fragment>"
+        "Use `<></>` instead of `<React.Fragment></React.Fragment>`."
     };
     OxcDiagnostic::warn(msg).with_help(help).with_label(span)
 }
