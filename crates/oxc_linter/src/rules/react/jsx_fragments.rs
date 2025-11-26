@@ -24,7 +24,7 @@ fn jsx_fragments_diagnostic(span: Span, mode: FragmentMode) -> OxcDiagnostic {
 
 #[derive(Debug, Default, Clone)]
 pub struct JsxFragments {
-    mode: FragmentMode
+    mode: FragmentMode,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Copy, JsonSchema, Deserialize, Serialize)]
@@ -88,15 +88,22 @@ declare_oxc_lint!(
 );
 
 impl Rule for JsxFragments {
+    // Generally we should prefer the string-only syntax for compatibility with the original ESLint rule,
+    // but we originally implemented the rule with only the object syntax, so we support both now.
     fn from_configuration(value: Value) -> Self {
-        let obj = value.get(0);
-        Self {
-            mode: obj
-                .and_then(|v| v.get("mode"))
-                .and_then(Value::as_str)
-                .map(FragmentMode::from)
-                .unwrap_or_default(),
-        }
+        let arg = value.get(0);
+        let mode = arg
+            .and_then(|v| {
+                // allow either a string argument, eg: ["syntax"], or an object with `mode` field
+                if let Some(s) = v.as_str() {
+                    Some(FragmentMode::from(s))
+                } else {
+                    v.get("mode").and_then(Value::as_str).map(FragmentMode::from)
+                }
+            })
+            .unwrap_or_default();
+
+        Self { mode }
     }
 
     fn run<'a>(&self, node: &AstNode<'a>, ctx: &LintContext<'a>) {
@@ -181,24 +188,31 @@ fn test() {
         (r#"<React.Fragment key="key"><Foo /></React.Fragment>"#, None),
         ("<Fragment />", None),
         ("<React.Fragment />", None),
+        // Configuration can be done via a string directly, or an object with the `mode` field.
+        ("<><Foo /></>", Some(json!(["syntax"]))),
+        ("<><Foo /></>", Some(json!([{"mode": "syntax"}]))),
+        ("<React.Fragment><Foo /></React.Fragment>", Some(json!(["element"]))),
         ("<React.Fragment><Foo /></React.Fragment>", Some(json!([{"mode": "element"}]))),
     ];
 
     let fail = vec![
         ("<Fragment><Foo /></Fragment>", None),
         ("<React.Fragment><Foo /></React.Fragment>", None),
+        ("<><Foo /></>", Some(json!(["element"]))),
         ("<><Foo /></>", Some(json!([{"mode": "element"}]))),
     ];
 
     let fix = vec![
         ("<Fragment><Foo /></Fragment>", "<><Foo /></>", None),
         ("<React.Fragment><Foo /></React.Fragment>", "<><Foo /></>", None),
+        ("<><Foo /></>", "<React.Fragment><Foo /></React.Fragment>", Some(json!(["element"]))),
         (
             "<><Foo /></>",
             "<React.Fragment><Foo /></React.Fragment>",
             Some(json!([{"mode": "element"}])),
         ),
     ];
+
     Tester::new(JsxFragments::NAME, JsxFragments::PLUGIN, pass, fail)
         .expect_fix(fix)
         .test_and_snapshot();
