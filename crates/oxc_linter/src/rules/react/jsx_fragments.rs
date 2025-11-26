@@ -22,11 +22,14 @@ fn jsx_fragments_diagnostic(span: Span, mode: FragmentMode) -> OxcDiagnostic {
     OxcDiagnostic::warn(msg).with_help(help).with_label(span)
 }
 
-#[derive(Debug, Default, Clone, JsonSchema, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Debug, Default, Clone)]
 pub struct JsxFragments {
-    /// `syntax` mode:
-    ///
+    mode: FragmentMode
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Copy, JsonSchema, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FragmentMode {
     /// This is the default mode. It will enforce the shorthand syntax for React fragments, with one exception.
     /// Keys or attributes are not supported by the shorthand syntax, so the rule will not warn on standard-form fragments that use those.
     ///
@@ -43,8 +46,8 @@ pub struct JsxFragments {
     /// ```jsx
     /// <React.Fragment key="key"><Foo /></React.Fragment>
     /// ```
-    ///
-    /// `element` mode:
+    #[default]
+    Syntax,
     /// This mode enforces the standard form for React fragments.
     ///
     /// Examples of **incorrect** code for this rule:
@@ -60,14 +63,6 @@ pub struct JsxFragments {
     /// ```jsx
     /// <React.Fragment key="key"><Foo /></React.Fragment>
     /// ```
-    mode: FragmentMode,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Copy, JsonSchema, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum FragmentMode {
-    #[default]
-    Syntax,
     Element,
 }
 
@@ -89,7 +84,7 @@ declare_oxc_lint!(
     react,
     style,
     fix,
-    config = JsxFragments,
+    config = FragmentMode,
 );
 
 impl Rule for JsxFragments {
