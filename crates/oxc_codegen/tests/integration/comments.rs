@@ -181,6 +181,9 @@ catch(e) {
   // should never happen
 }
 ",
+            // Inline comment between catch param and body
+            "try { console.log('test'); }
+catch (err) /* v8 ignore next */ { console.error(err); }",
         ];
 
         snapshot("coverage", &cases);

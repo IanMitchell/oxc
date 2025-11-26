@@ -35,6 +35,7 @@
 ## Full Ready Check
 
 Run all checks before finalizing:
+
 ```bash
 just ready
 ```
