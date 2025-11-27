@@ -115,9 +115,12 @@ impl TriviaBuilder {
     /// function foo( // This should not be treated as trailing (follows `(`)
     ///     param
     /// ) {}
+    ///
+    /// catch (err) // This should not be treated as trailing (follows `)`)
+    /// { ... }
     /// ```
     fn should_be_treated_as_trailing_comment(&self) -> bool {
-        !self.saw_newline && !matches!(self.previous_kind, Kind::Eq | Kind::LParen)
+        !self.saw_newline && !matches!(self.previous_kind, Kind::Eq | Kind::LParen | Kind::RParen)
     }
 
     fn add_comment(&mut self, mut comment: Comment, source_text: &str) {
