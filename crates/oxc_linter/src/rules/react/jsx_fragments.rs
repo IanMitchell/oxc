@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{AstNode, context::LintContext, rule::Rule, utils::is_jsx_fragment};
+use crate::{AstNode, context::LintContext, rule::{DefaultRuleConfig, Rule}, utils::is_jsx_fragment};
 
 fn jsx_fragments_diagnostic(span: Span, mode: FragmentMode) -> OxcDiagnostic {
     let msg = if mode == FragmentMode::Element {
@@ -102,13 +102,9 @@ impl Rule for JsxFragments {
     // Generally we should prefer the string-only syntax for compatibility with the original ESLint rule,
     // but we originally implemented the rule with only the object syntax, so we support both now.
     fn from_configuration(value: Value) -> Self {
-        // We expect configuration to be an array with a single argument like ["syntax"] or [{"mode":"element"}]
-        // Take the first element and deserialize that into our helper enum which supports both forms.
-        value
-            .get(0)
-            .cloned()
-            .and_then(|v| serde_json::from_value::<JsxFragments>(v).ok())
+        serde_json::from_value::<DefaultRuleConfig<JsxFragments>>(value)
             .unwrap_or_default()
+            .into_inner()
     }
 
     fn run<'a>(&self, node: &AstNode<'a>, ctx: &LintContext<'a>) {
