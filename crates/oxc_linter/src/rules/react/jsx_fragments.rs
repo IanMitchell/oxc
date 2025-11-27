@@ -22,9 +22,26 @@ fn jsx_fragments_diagnostic(span: Span, mode: FragmentMode) -> OxcDiagnostic {
     OxcDiagnostic::warn(msg).with_help(help).with_label(span)
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct JsxFragments {
-    mode: FragmentMode,
+#[derive(Debug, Clone, JsonSchema, Deserialize)]
+#[serde(untagged)]
+pub enum JsxFragments {
+    Mode(FragmentMode),
+    Object { mode: FragmentMode },
+}
+
+impl Default for JsxFragments {
+    fn default() -> Self {
+        JsxFragments::Mode(FragmentMode::Syntax)
+    }
+}
+
+impl JsxFragments {
+    fn mode(&self) -> FragmentMode {
+        match self {
+            JsxFragments::Mode(m) => *m,
+            JsxFragments::Object { mode } => *mode,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Copy, JsonSchema, Deserialize, Serialize)]
@@ -66,12 +83,6 @@ pub enum FragmentMode {
     Element,
 }
 
-impl From<&str> for FragmentMode {
-    fn from(value: &str) -> Self {
-        if value == "element" { Self::Element } else { Self::Syntax }
-    }
-}
-
 declare_oxc_lint!(
     /// ### What it does
     ///
@@ -91,18 +102,18 @@ impl Rule for JsxFragments {
     // Generally we should prefer the string-only syntax for compatibility with the original ESLint rule,
     // but we originally implemented the rule with only the object syntax, so we support both now.
     fn from_configuration(value: Value) -> Self {
-        Self {
-            mode: value
-                .get(0)
-                .and_then(|v| v.as_str().or_else(|| v.get("mode").and_then(Value::as_str)))
-                .map(FragmentMode::from)
-                .unwrap_or_default(),
-        }
+        // We expect configuration to be an array with a single argument like ["syntax"] or [{"mode":"element"}]
+        // Take the first element and deserialize that into our helper enum which supports both forms.
+        value
+            .get(0)
+            .cloned()
+            .and_then(|v| serde_json::from_value::<JsxFragments>(v).ok())
+            .unwrap_or_default()
     }
 
     fn run<'a>(&self, node: &AstNode<'a>, ctx: &LintContext<'a>) {
         match node.kind() {
-            AstKind::JSXElement(jsx_elem) if self.mode == FragmentMode::Syntax => {
+            AstKind::JSXElement(jsx_elem) if self.mode() == FragmentMode::Syntax => {
                 let Some(closing_element) = &jsx_elem.closing_element else {
                     return;
                 };
@@ -112,7 +123,7 @@ impl Rule for JsxFragments {
                     return;
                 }
                 ctx.diagnostic_with_fix(
-                    jsx_fragments_diagnostic(jsx_elem.opening_element.name.span(), self.mode),
+                    jsx_fragments_diagnostic(jsx_elem.opening_element.name.span(), self.mode()),
                     |fixer| {
                         let before_opening_tag = ctx.source_range(Span::new(
                             jsx_elem.span().start,
@@ -136,9 +147,9 @@ impl Rule for JsxFragments {
                     },
                 );
             }
-            AstKind::JSXFragment(jsx_frag) if self.mode == FragmentMode::Element => {
+            AstKind::JSXFragment(jsx_frag) if self.mode() == FragmentMode::Element => {
                 ctx.diagnostic_with_fix(
-                    jsx_fragments_diagnostic(jsx_frag.opening_fragment.span(), self.mode),
+                    jsx_fragments_diagnostic(jsx_frag.opening_fragment.span(), self.mode()),
                     |fixer| {
                         let before_opening_tag = ctx.source_range(Span::new(
                             jsx_frag.span().start,
