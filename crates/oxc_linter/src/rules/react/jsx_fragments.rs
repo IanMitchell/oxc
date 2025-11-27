@@ -91,19 +91,13 @@ impl Rule for JsxFragments {
     // Generally we should prefer the string-only syntax for compatibility with the original ESLint rule,
     // but we originally implemented the rule with only the object syntax, so we support both now.
     fn from_configuration(value: Value) -> Self {
-        let arg = value.get(0);
-        let mode = arg
-            .and_then(|v| {
-                // allow either a string argument, eg: ["syntax"], or an object with `mode` field
-                if let Some(s) = v.as_str() {
-                    Some(FragmentMode::from(s))
-                } else {
-                    v.get("mode").and_then(Value::as_str).map(FragmentMode::from)
-                }
-            })
-            .unwrap_or_default();
-
-        Self { mode }
+        Self {
+            mode: value
+                .get(0)
+                .and_then(|v| v.as_str().or_else(|| v.get("mode").and_then(Value::as_str)))
+                .map(FragmentMode::from)
+                .unwrap_or_default(),
+        }
     }
 
     fn run<'a>(&self, node: &AstNode<'a>, ctx: &LintContext<'a>) {
