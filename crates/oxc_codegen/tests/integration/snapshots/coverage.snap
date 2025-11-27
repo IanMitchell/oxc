@@ -137,8 +137,7 @@ catch (err) // v8 ignore next
 ----------
 try {
 	something();
-} catch (err) // v8 ignore next
-{
+} catch (err) {
 	handle(err);
 }
 

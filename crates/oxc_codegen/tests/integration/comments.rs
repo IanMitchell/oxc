@@ -187,7 +187,10 @@ catch (err) /* v8 ignore next */ { console.error(err); }",
             // Multiple comments between catch param and body
             "try { something(); }
 catch (err) /* c8 ignore next */ /* istanbul ignore next */ { handle(err); }",
-            // Line comment between catch param and body
+            // Line comment between catch param and body.
+            // NOTE: Line comments after `)` are classified as trailing comments by the parser,
+            // so they are not preserved. Use block comments instead.
+            // See: https://github.com/oxc-project/oxc/pull/16167#discussion_r2567604139
             "try { something(); }
 catch (err) // v8 ignore next
 { handle(err); }",
