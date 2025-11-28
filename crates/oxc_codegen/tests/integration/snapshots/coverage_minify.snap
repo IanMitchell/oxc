@@ -1,0 +1,7 @@
+---
+source: crates/oxc_codegen/tests/integration/main.rs
+---
+########## 0
+try { x } catch (err) /* v8 ignore next */ { y }
+----------
+try{x}catch(err){y}

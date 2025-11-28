@@ -151,7 +151,9 @@ export type TSTypeLiteral = {
 }
 
 pub mod coverage {
-    use crate::snapshot;
+    use oxc_codegen::{CodegenOptions, CommentOptions};
+
+    use crate::{snapshot, snapshot_options};
 
     #[test]
     fn comment() {
@@ -197,6 +199,18 @@ catch (err) // v8 ignore next
         ];
 
         snapshot("coverage", &cases);
+    }
+
+    #[test]
+    fn minify() {
+        // Test that comments between catch param and body are stripped in true minify mode (comments disabled)
+        let cases = vec!["try { x } catch (err) /* v8 ignore next */ { y }"];
+        let options = CodegenOptions {
+            minify: true,
+            comments: CommentOptions::disabled(),
+            ..CodegenOptions::default()
+        };
+        snapshot_options("coverage_minify", &cases, &options);
     }
 }
 
