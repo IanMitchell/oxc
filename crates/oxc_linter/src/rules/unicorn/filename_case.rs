@@ -5,8 +5,8 @@ use oxc_diagnostics::OxcDiagnostic;
 use oxc_macros::declare_oxc_lint;
 use oxc_span::Span;
 use schemars::JsonSchema;
-use serde_json::Value;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     context::{ContextHost, LintContext},
@@ -128,6 +128,7 @@ struct FilenameCaseConfigJsonCases {
 
 #[derive(Debug, Default, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[expect(clippy::enum_variant_names)]
 enum FilenameCaseJsonOptions {
     #[default]
     KebabCase,
