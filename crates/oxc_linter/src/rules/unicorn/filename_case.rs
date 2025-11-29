@@ -30,13 +30,13 @@ impl std::ops::Deref for FilenameCase {
 #[derive(Debug, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FilenameCaseConfig {
-    /// Whether kebab case is allowed.
+    /// Whether kebab case is allowed, e.g. `some-file-name.js`.
     kebab_case: bool,
-    /// Whether camel case is allowed.
+    /// Whether camel case is allowed, e.g. `someFileName.js`.
     camel_case: bool,
-    /// Whether snake case is allowed.
+    /// Whether snake case is allowed, e.g. `some_file_name.js`.
     snake_case: bool,
-    /// Whether pascal case is allowed.
+    /// Whether pascal case is allowed, e.g. `SomeFileName.js`.
     pascal_case: bool,
     /// A regular expression pattern for filenames to ignore.
     ignore: Option<Regex>,
@@ -444,6 +444,7 @@ fn test() {
         test_case("index.vue", "snakeCase"),
         test_case("index.vue", "kebabCase"),
         test_case("index.vue", "pascalCase"),
+        test_case("foo/bar/index.vue", "pascalCase"),
     ];
 
     let fail = vec![
@@ -455,6 +456,11 @@ fn test() {
         test_case("test/foo/fooBar.js", "snakeCase"),
         test_case("test/foo/fooBar.test.js", "snakeCase"),
         test_case("test/foo/fooBar.testUtils.js", "snakeCase"),
+        test_case("test/foo/fooBar.test_utils.js", "snakeCase"),
+        test_case_with_options(
+            "test/foo/foo_bar.testUtils.js",
+            serde_json::json!([{ "case": "snakeCase", "multipleFileExtensions": false }]),
+        ),
         test_case("test/foo/fooBar.js", "kebabCase"),
         test_case("test/foo/fooBar.test.js", "kebabCase"),
         test_case("test/foo/fooBar.testUtils.js", "kebabCase"),

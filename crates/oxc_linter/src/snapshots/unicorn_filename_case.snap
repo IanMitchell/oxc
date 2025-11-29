@@ -31,6 +31,16 @@ source: crates/oxc_linter/src/tester.rs
    ╰────
   help: Rename the file to 'foo_bar.testUtils.js'
 
+  ⚠ eslint-plugin-unicorn(filename-case): Filename should be in snake_case
+   ╭─[filename_case.tsx:1:1]
+   ╰────
+  help: Rename the file to 'foo_bar.test_utils.js'
+
+  ⚠ eslint-plugin-unicorn(filename-case): Filename should be in snake_case
+   ╭─[filename_case.tsx:1:1]
+   ╰────
+  help: Rename the file to 'foo_bar.test_utils.js'
+
   ⚠ eslint-plugin-unicorn(filename-case): Filename should be in kebab-case
    ╭─[filename_case.tsx:1:1]
    ╰────
