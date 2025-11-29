@@ -40,7 +40,9 @@ pub struct FilenameCaseConfig {
     pascal_case: bool,
     /// A regular expression pattern for filenames to ignore.
     ignore: Option<Regex>,
-    multi_extensions: bool,
+    /// Whether to treat additional, `.`-separated parts of a filename as
+    /// parts of the extension rather than parts of the filename.
+    multiple_file_extensions: bool,
 }
 
 impl Default for FilenameCaseConfig {
@@ -51,7 +53,7 @@ impl Default for FilenameCaseConfig {
             snake_case: false,
             pascal_case: false,
             ignore: None,
-            multi_extensions: true,
+            multiple_file_extensions: true,
         }
     }
 }
@@ -157,7 +159,8 @@ declare_oxc_lint!(
 
 impl Rule for FilenameCase {
     fn from_configuration(value: serde_json::Value) -> Self {
-        let mut config = FilenameCaseConfig { multi_extensions: true, ..Default::default() };
+        let mut config =
+            FilenameCaseConfig { multiple_file_extensions: true, ..Default::default() };
 
         if let Some(value) = value.get(0) {
             config.kebab_case = false;
@@ -166,7 +169,7 @@ impl Rule for FilenameCase {
             }
 
             if let Some(Value::Bool(val)) = value.get("multipleFileExtensions") {
-                config.multi_extensions = *val;
+                config.multiple_file_extensions = *val;
             }
 
             if let Some(Value::String(s)) = value.get("case") {
@@ -208,7 +211,7 @@ impl Rule for FilenameCase {
             return;
         }
 
-        let filename = if self.multi_extensions {
+        let filename = if self.multiple_file_extensions {
             raw_filename.split('.').next()
         } else {
             raw_filename.rsplit_once('.').map(|(before, _)| before)
@@ -412,7 +415,6 @@ fn test() {
             serde_json::json!([{ "case": "snakeCase", "multipleFileExtensions": false }]),
         ),
         ("", None, None, Some(PathBuf::from("foo-bar.tsx"))),
-
         // Ensure all `index` files are allowed, regardless of casing
         test_case("index.js", "camelCase"),
         test_case("index.js", "snakeCase"),
