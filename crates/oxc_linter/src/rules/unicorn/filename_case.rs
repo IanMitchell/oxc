@@ -4,6 +4,7 @@ use lazy_regex::{Regex, RegexBuilder};
 use oxc_diagnostics::OxcDiagnostic;
 use oxc_macros::declare_oxc_lint;
 use oxc_span::Span;
+use schemars::JsonSchema;
 use serde_json::Value;
 
 use crate::{
@@ -26,7 +27,8 @@ impl std::ops::Deref for FilenameCase {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
 pub struct FilenameCaseConfig {
     /// Whether kebab case is allowed.
     kebab_case: bool,
@@ -36,6 +38,7 @@ pub struct FilenameCaseConfig {
     snake_case: bool,
     /// Whether pascal case is allowed.
     pascal_case: bool,
+    /// A regular expression pattern for filenames to ignore.
     ignore: Option<Regex>,
     multi_extensions: bool,
 }
@@ -214,11 +217,18 @@ impl Rule for FilenameCase {
         let filename = filename.unwrap_or(raw_filename);
         let trimmed_filename = filename.trim_matches('_');
 
+        // Ignore files named "index" — they are often used as module entry points and
+        // cannot reliably be renamed to other casings (e.g. "Index.js"), so allow them
+        // regardless of the configured filename case.
+        if trimmed_filename.eq_ignore_ascii_case("index") {
+            return;
+        }
+
         let cases = [
-            (self.camel_case, Case::Camel, "camel case"),
-            (self.kebab_case, Case::Kebab, "kebab case"),
-            (self.snake_case, Case::Snake, "snake case"),
-            (self.pascal_case, Case::Pascal, "pascal case"),
+            (self.camel_case, Case::Camel, "camelCase"),
+            (self.kebab_case, Case::Kebab, "kebab-case"),
+            (self.snake_case, Case::Snake, "snake_case"),
+            (self.pascal_case, Case::Pascal, "PascalCase"),
         ];
 
         let mut valid_cases = Vec::new();
@@ -402,6 +412,32 @@ fn test() {
             serde_json::json!([{ "case": "snakeCase", "multipleFileExtensions": false }]),
         ),
         ("", None, None, Some(PathBuf::from("foo-bar.tsx"))),
+
+        // Ensure all `index` files are allowed, regardless of casing
+        test_case("index.js", "camelCase"),
+        test_case("index.js", "snakeCase"),
+        test_case("index.js", "kebabCase"),
+        test_case("index.js", "pascalCase"),
+        test_case("index.mjs", "camelCase"),
+        test_case("index.mjs", "snakeCase"),
+        test_case("index.mjs", "kebabCase"),
+        test_case("index.mjs", "pascalCase"),
+        test_case("index.cjs", "camelCase"),
+        test_case("index.cjs", "snakeCase"),
+        test_case("index.cjs", "kebabCase"),
+        test_case("index.cjs", "pascalCase"),
+        test_case("index.ts", "camelCase"),
+        test_case("index.ts", "snakeCase"),
+        test_case("index.ts", "kebabCase"),
+        test_case("index.ts", "pascalCase"),
+        test_case("index.tsx", "camelCase"),
+        test_case("index.tsx", "snakeCase"),
+        test_case("index.tsx", "kebabCase"),
+        test_case("index.tsx", "pascalCase"),
+        test_case("index.vue", "camelCase"),
+        test_case("index.vue", "snakeCase"),
+        test_case("index.vue", "kebabCase"),
+        test_case("index.vue", "pascalCase"),
     ];
 
     let fail = vec![
