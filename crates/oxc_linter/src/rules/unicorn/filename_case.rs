@@ -64,6 +64,9 @@ declare_oxc_lint!(
     /// Enforces a consistent case style for filenames to improve project organization and maintainability.
     /// By default, `kebab-case` is enforced, but other styles can be configured.
     ///
+    /// Files named `index.js`, `index.ts`, etc. are exempt from this rule as they cannot reliably be
+    /// renamed to other casings (mainly just a problem with PascalCase).
+    ///
     /// ### Why is this bad?
     ///
     /// Inconsistent file naming conventions make it harder to locate files, navigate projects, and enforce
@@ -218,14 +221,15 @@ impl Rule for FilenameCase {
         };
 
         let filename = filename.unwrap_or(raw_filename);
-        let trimmed_filename = filename.trim_matches('_');
 
         // Ignore files named "index" — they are often used as module entry points and
         // cannot reliably be renamed to other casings (e.g. "Index.js"), so allow them
         // regardless of the configured filename case.
-        if trimmed_filename.eq_ignore_ascii_case("index") {
+        if filename.eq_ignore_ascii_case("index") {
             return;
         }
+
+        let trimmed_filename = filename.trim_matches('_');
 
         let cases = [
             (self.camel_case, Case::Camel, "camelCase"),
@@ -415,7 +419,7 @@ fn test() {
             serde_json::json!([{ "case": "snakeCase", "multipleFileExtensions": false }]),
         ),
         ("", None, None, Some(PathBuf::from("foo-bar.tsx"))),
-        // Ensure all `index` files are allowed, regardless of casing
+        // Ensure all `index` files are allowed, despite being in non-conforming case.
         test_case("index.js", "camelCase"),
         test_case("index.js", "snakeCase"),
         test_case("index.js", "kebabCase"),
@@ -444,7 +448,7 @@ fn test() {
 
     let fail = vec![
         test_case("src/foo/foo_bar.js", ""),
-        // todo: linter does not support uppercase JS files
+        // todo: linter does not support uppercase .JS files
         // test_case("src/foo/foo_bar.JS", "camelCase"),
         test_case("src/foo/foo_bar.test.js", "camelCase"),
         test_case("test/foo/foo_bar.test_utils.js", "camelCase"),
