@@ -104,7 +104,12 @@ pub struct FilenameCaseConfigJson {
 impl Default for FilenameCaseConfigJson {
     fn default() -> Self {
         Self {
-            cases: FilenameCaseConfigJsonCases::default(),
+            cases: FilenameCaseConfigJsonCases {
+                kebab_case: true,
+                camel_case: false,
+                snake_case: false,
+                pascal_case: false,
+            },
             case: FilenameCaseJsonOptions::KebabCase,
             ignore: None,
             multiple_file_extensions: true,
