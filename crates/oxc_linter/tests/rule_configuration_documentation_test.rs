@@ -44,8 +44,6 @@ fn test_rules_with_custom_configuration_have_schema() {
         "react/forbid-elements",
         // typescript
         "typescript/ban-ts-comment",
-        // unicorn
-        "unicorn/filename-case",
     ];
 
     let exception_set: FxHashSet<&str> = exceptions.iter().copied().collect();

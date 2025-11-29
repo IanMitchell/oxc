@@ -6,10 +6,12 @@ use oxc_macros::declare_oxc_lint;
 use oxc_span::Span;
 use schemars::JsonSchema;
 use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     context::{ContextHost, LintContext},
     rule::Rule,
+    utils::default_true,
 };
 
 fn filename_case_diagnostic(message: String, help_message: String) -> OxcDiagnostic {
@@ -27,23 +29,13 @@ impl std::ops::Deref for FilenameCase {
     }
 }
 
-// TODO: Refactor this to work for config documentation like other rules,
-// or possibly create a fake struct for use only with the config documentation.
-#[derive(Debug, Clone, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Debug, Clone)]
 pub struct FilenameCaseConfig {
-    /// Whether kebab case is allowed, e.g. `some-file-name.js`.
     kebab_case: bool,
-    /// Whether camel case is allowed, e.g. `someFileName.js`.
     camel_case: bool,
-    /// Whether snake case is allowed, e.g. `some_file_name.js`.
     snake_case: bool,
-    /// Whether pascal case is allowed, e.g. `SomeFileName.js`.
     pascal_case: bool,
-    /// A regular expression pattern for filenames to ignore.
     ignore: Option<Regex>,
-    /// Whether to treat additional, `.`-separated parts of a filename as
-    /// parts of the extension rather than parts of the filename.
     multiple_file_extensions: bool,
 }
 
@@ -58,6 +50,90 @@ impl Default for FilenameCaseConfig {
             multiple_file_extensions: true,
         }
     }
+}
+
+// Use a separate struct for configuration docs, as the main config struct is
+// too different from the format of the end-user configuration options' shape.
+#[derive(Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FilenameCaseConfigJson {
+    /// The case style(s) to allow/enforce for filenames. `true` means the case style is allowed, `false` means it is banned.
+    ///
+    /// You can set the `cases` option like this:
+    /// ```json
+    /// "unicorn/filename-case": [
+    ///   "error",
+    ///   {
+    ///     "cases": {
+    ///       "camelCase": true,
+    ///       "pascalCase": true
+    ///     }
+    ///   }
+    /// ]
+    /// ```
+    cases: FilenameCaseConfigJsonCases,
+    /// The case style to enforce for filenames.
+    ///
+    /// You can set the `case` option like this:
+    /// ```json
+    /// "unicorn/filename-case": [
+    ///   "error",
+    ///   {
+    ///     "case": "kebabCase"
+    ///   }
+    /// ]
+    /// ```
+    case: FilenameCaseJsonOptions,
+    /// A regular expression pattern for filenames to ignore.
+    ///
+    /// You can set the `ignore` option like this:
+    /// ```json
+    /// "unicorn/filename-case": [
+    ///   "error",
+    ///   {
+    ///     "ignore": "^foo.*$"
+    ///   }
+    /// ]
+    /// ```
+    ignore: Option<Regex>,
+    /// Whether to treat additional, `.`-separated parts of a filename as
+    /// parts of the extension rather than parts of the filename.
+    multiple_file_extensions: bool,
+}
+
+impl Default for FilenameCaseConfigJson {
+    fn default() -> Self {
+        Self {
+            cases: FilenameCaseConfigJsonCases::default(),
+            case: FilenameCaseJsonOptions::KebabCase,
+            ignore: None,
+            multiple_file_extensions: true,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct FilenameCaseConfigJsonCases {
+    /// Whether kebab case is allowed, e.g. `some-file-name.js`.
+    #[serde(default = "default_true")]
+    kebab_case: bool,
+    /// Whether camel case is allowed, e.g. `someFileName.js`.
+    camel_case: bool,
+    /// Whether snake case is allowed, e.g. `some_file_name.js`.
+    snake_case: bool,
+    /// Whether pascal case is allowed, e.g. `SomeFileName.js`.
+    pascal_case: bool,
+}
+
+#[derive(Debug, Default, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum FilenameCaseJsonOptions {
+    #[default]
+    KebabCase,
+    CamelCase,
+    SnakeCase,
+    PascalCase,
 }
 
 declare_oxc_lint!(
@@ -102,64 +178,10 @@ declare_oxc_lint!(
     /// - `SomeFileName.js`
     /// - `SomeFileName.Test.js`
     /// - `SomeFileName.TestUtils.js`
-    ///
-    /// ### Options
-    ///
-    /// #### case
-    ///
-    /// `{ type: 'kebabCase' | 'camelCase' | 'snakeCase' | 'pascalCase' }`
-    ///
-    /// You can set the `case` option like this:
-    /// ```json
-    /// "unicorn/filename-case": [
-    ///   "error",
-    ///   {
-    ///     "case": "kebabCase"
-    ///   }
-    /// ]
-    /// ```
-    ///
-    /// #### cases
-    ///
-    /// `{ type: { [key in 'kebabCase' | 'camelCase' | 'snakeCase' | 'pascalCase']?: boolean } }`
-    ///
-    /// You can set the `cases` option like this:
-    /// ```json
-    /// "unicorn/filename-case": [
-    ///   "error",
-    ///   {
-    ///     "cases": {
-    ///       "camelCase": true,
-    ///       "pascalCase": true
-    ///     }
-    ///   }
-    /// ]
-    /// ```
-    ///
-    /// #### ignore
-    ///
-    /// `{ type: string }`
-    ///
-    /// Specifies a regular expression pattern for filenames that should be ignored by this rule.
-    ///
-    /// You can set the `ignore` option like this:
-    /// ```json
-    /// "unicorn/filename-case": [
-    ///   "error",
-    ///   {
-    ///     "ignore": "^foo.*$"
-    ///   }
-    /// ]
-    /// ```
-    ///
-    /// #### multipleFileExtensions
-    ///
-    /// `{ type: boolean, default: true }`
-    ///
-    /// Whether to treat additional, `.`-separated parts of a filename as parts of the extension rather than parts of the filename.
     FilenameCase,
     unicorn,
-    style
+    style,
+    config = FilenameCaseConfigJson,
 );
 
 impl Rule for FilenameCase {
