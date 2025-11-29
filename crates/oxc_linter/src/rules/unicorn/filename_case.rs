@@ -11,7 +11,6 @@ use serde_json::Value;
 use crate::{
     context::{ContextHost, LintContext},
     rule::Rule,
-    utils::default_true,
 };
 
 fn filename_case_diagnostic(message: String, help_message: String) -> OxcDiagnostic {
@@ -104,12 +103,7 @@ pub struct FilenameCaseConfigJson {
 impl Default for FilenameCaseConfigJson {
     fn default() -> Self {
         Self {
-            cases: FilenameCaseConfigJsonCases {
-                kebab_case: true,
-                camel_case: false,
-                snake_case: false,
-                pascal_case: false,
-            },
+            cases: FilenameCaseConfigJsonCases::default(),
             case: FilenameCaseJsonOptions::KebabCase,
             ignore: None,
             multiple_file_extensions: true,
@@ -117,11 +111,10 @@ impl Default for FilenameCaseConfigJson {
     }
 }
 
-#[derive(Debug, Default, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct FilenameCaseConfigJsonCases {
     /// Whether kebab case is allowed, e.g. `some-file-name.js`.
-    #[serde(default = "default_true")]
     kebab_case: bool,
     /// Whether camel case is allowed, e.g. `someFileName.js`.
     camel_case: bool,
@@ -129,6 +122,12 @@ struct FilenameCaseConfigJsonCases {
     snake_case: bool,
     /// Whether pascal case is allowed, e.g. `SomeFileName.js`.
     pascal_case: bool,
+}
+
+impl Default for FilenameCaseConfigJsonCases {
+    fn default() -> Self {
+        Self { kebab_case: true, camel_case: false, snake_case: false, pascal_case: false }
+    }
 }
 
 #[derive(Debug, Default, Clone, JsonSchema, Serialize, Deserialize)]
@@ -367,6 +366,12 @@ fn test() {
     }
 
     let pass = vec![
+        // Default is to allow kebab-case
+        ("", None, None, Some(PathBuf::from("foo-bar.tsx"))),
+        ("", None, None, Some(PathBuf::from("src/foo-bar.tsx"))),
+        ("", None, None, Some(PathBuf::from("src/bar/foo-bar.js"))),
+        ("", None, None, Some(PathBuf::from("src/bar/foo.js"))),
+        // Specific cases
         test_case("src/foo/bar.js", "camelCase"),
         test_case("src/foo/fooBar.js", "camelCase"),
         test_case("src/foo/bar.test.js", "camelCase"),
