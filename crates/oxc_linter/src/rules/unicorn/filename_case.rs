@@ -27,6 +27,8 @@ impl std::ops::Deref for FilenameCase {
     }
 }
 
+// TODO: Refactor this to work for config documentation like other rules,
+// or possibly create a fake struct for use only with the config documentation.
 #[derive(Debug, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct FilenameCaseConfig {
