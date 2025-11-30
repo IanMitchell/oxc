@@ -114,7 +114,7 @@ const source = `{}`;
                 .metadata
                 .as_ref()
                 .and_then(|m| m.description.as_ref())
-                .map(|desc| format!("\n{}\n", desc))
+                .map(|desc| format!("\n{desc}\n"))
                 .unwrap_or_default();
             if !config_section.trim().is_empty() {
                 writeln!(self.page, "\n## Configuration\n{section_description}{config_section}")?;
