@@ -144,8 +144,6 @@ fn do_while_stmt() {
     test_minify("do throw x; while (true)", "do throw x;while(true);");
     test_minify("do with(x); while (true)", "do with(x);while(true);");
     test_minify("do try{} catch{} while (true)", "do try{}catch{}while(true);");
-    // Test that catch clause with comment between param and body works in minified mode
-    // Note: Comments are preserved in minify mode when using default options (comments enabled)
     test_minify(
         "try { x } catch (err) /* v8 ignore next */ { y }",
         "try{x}catch(err)/* v8 ignore next */{y}",
