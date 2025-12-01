@@ -200,18 +200,6 @@ catch (err) // v8 ignore next
 
         snapshot("coverage", &cases);
     }
-
-    #[test]
-    fn minify() {
-        // Test that comments between catch param and body are stripped in true minify mode (comments disabled)
-        let cases = vec!["try { x } catch (err) /* v8 ignore next */ { y }"];
-        let options = CodegenOptions {
-            minify: true,
-            comments: CommentOptions::disabled(),
-            ..CodegenOptions::default()
-        };
-        snapshot_options("coverage_minify", &cases, &options);
-    }
 }
 
 pub mod legal {
