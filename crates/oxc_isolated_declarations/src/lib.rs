@@ -13,7 +13,7 @@ use oxc_allocator::{Allocator, CloneIn, Vec as ArenaVec};
 use oxc_ast::{AstBuilder, NONE, ast::*};
 use oxc_ast_visit::Visit;
 use oxc_diagnostics::OxcDiagnostic;
-use oxc_span::{Atom, GetSpan, SPAN, SourceType};
+use oxc_span::{Atom, GetSpan, Ident, SPAN, SourceType};
 
 use crate::{diagnostics::function_with_assigning_properties, scope::ScopeTree};
 
@@ -439,7 +439,7 @@ impl<'a> IsolatedDeclarations<'a> {
     }
 
     fn remove_function_overloads_implementation(stmts: &mut Vec<&Statement<'a>>) {
-        let mut last_function_name: Option<Atom<'a>> = None;
+        let mut last_function_name: Option<Ident<'a>> = None;
         let mut is_export_default_function_overloads = false;
 
         stmts.retain(move |&stmt| match stmt {
@@ -536,7 +536,7 @@ impl<'a> IsolatedDeclarations<'a> {
                                 assignable_properties_for_namespace
                                     .entry(&ident.name)
                                     .or_default()
-                                    .insert(name);
+                                    .insert(name.into_atom());
                             }
                         }
                     }
@@ -545,7 +545,7 @@ impl<'a> IsolatedDeclarations<'a> {
                             assignable_properties_for_namespace
                                 .entry(&ident.name)
                                 .or_default()
-                                .insert(name);
+                                .insert(name.into_atom());
                         }
                     }
                     Some(Declaration::ClassDeclaration(cls)) => {
@@ -553,14 +553,14 @@ impl<'a> IsolatedDeclarations<'a> {
                             assignable_properties_for_namespace
                                 .entry(&ident.name)
                                 .or_default()
-                                .insert(id.name);
+                                .insert(id.name.into_atom());
                         }
                     }
                     Some(Declaration::TSEnumDeclaration(decl)) => {
                         assignable_properties_for_namespace
                             .entry(&ident.name)
                             .or_default()
-                            .insert(decl.id.name);
+                            .insert(decl.id.name.into_atom());
                     }
                     _ => {}
                 }
@@ -633,7 +633,7 @@ impl<'a> IsolatedDeclarations<'a> {
                         && !assignable_properties_for_namespace
                             .get(&ident.name.as_str())
                             .is_some_and(|properties| {
-                                properties.contains(&static_member_expr.property.name)
+                                properties.contains(&static_member_expr.property.name.into_atom())
                             })
                     {
                         self.error(function_with_assigning_properties(static_member_expr.span));

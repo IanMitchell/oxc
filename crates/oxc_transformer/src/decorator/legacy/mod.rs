@@ -613,7 +613,7 @@ impl<'a> LegacyDecorator<'a, '_> {
         // After: `class C {}` -> `let C = class {}`
         let class_binding = class.id.as_ref().map(|ident| {
             let new_class_binding =
-                ctx.generate_binding(ident.name, class.scope_id(), SymbolFlags::Class);
+                ctx.generate_binding(ident.name.into_atom(), class.scope_id(), SymbolFlags::Class);
             let old_class_symbol_id = ident.symbol_id.replace(Some(new_class_binding.symbol_id));
             let old_class_symbol_id = old_class_symbol_id.expect("class always has a symbol id");
 

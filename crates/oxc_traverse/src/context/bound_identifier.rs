@@ -5,7 +5,7 @@ use oxc_ast::{
         IdentifierReference, SimpleAssignmentTarget,
     },
 };
-use oxc_span::{Atom, SPAN, Span};
+use oxc_span::{Ident, SPAN, Span};
 use oxc_syntax::{reference::ReferenceFlags, symbol::SymbolId};
 
 use crate::TraverseCtx;
@@ -41,13 +41,13 @@ use super::MaybeBoundIdentifier;
 ///   created from it.
 #[derive(Debug, Clone)]
 pub struct BoundIdentifier<'a> {
-    pub name: Atom<'a>,
+    pub name: Ident<'a>,
     pub symbol_id: SymbolId,
 }
 
 impl<'a> BoundIdentifier<'a> {
     /// Create `BoundIdentifier` for `name` and `symbol_id`
-    pub fn new(name: Atom<'a>, symbol_id: SymbolId) -> Self {
+    pub fn new(name: Ident<'a>, symbol_id: SymbolId) -> Self {
         Self { name, symbol_id }
     }
 
@@ -66,7 +66,7 @@ impl<'a> BoundIdentifier<'a> {
         &self,
         ctx: &TraverseCtx<'a, State>,
     ) -> BindingIdentifier<'a> {
-        ctx.ast.binding_identifier_with_symbol_id(SPAN, self.name, self.symbol_id)
+        ctx.ast.binding_identifier_with_symbol_id(SPAN, Ident::from(self.name), self.symbol_id)
     }
 
     /// Create `BindingPattern` for this binding

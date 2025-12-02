@@ -4,7 +4,7 @@ use oxc_allocator::{Allocator, Vec as ArenaVec};
 use oxc_ast::ast::*;
 use oxc_ast_visit::Visit;
 use oxc_semantic::{NodeId, Reference, Scoping};
-use oxc_span::SPAN;
+use oxc_span::{Ident, SPAN};
 use oxc_syntax::{
     reference::{ReferenceFlags, ReferenceId},
     scope::{ScopeFlags, ScopeId},
@@ -262,7 +262,7 @@ impl<'a> TraverseScoping<'a> {
         flags: SymbolFlags,
     ) -> BoundIdentifier<'a> {
         let symbol_id = self.add_binding(name.as_str(), scope_id, flags);
-        BoundIdentifier::new(name, symbol_id)
+        BoundIdentifier::new(Ident::from(name), symbol_id)
     }
 
     /// Generate binding in current scope.

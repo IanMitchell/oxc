@@ -4,7 +4,7 @@ use oxc_ast::{
     ast::{Expression, IdentifierReference, Statement},
 };
 use oxc_semantic::Scoping;
-use oxc_span::{Atom, Span};
+use oxc_span::{Atom, Ident, Span};
 use oxc_syntax::{
     reference::{ReferenceFlags, ReferenceId},
     scope::{ScopeFlags, ScopeId},
@@ -415,7 +415,7 @@ impl<'a, State> TraverseCtx<'a, State> {
         // Get name for UID
         let name = self.generate_uid_name(name);
         let symbol_id = self.scoping.add_binding(&name, scope_id, flags);
-        BoundIdentifier::new(name, symbol_id)
+        BoundIdentifier::new(Ident::from(name), symbol_id)
     }
 
     /// Generate UID in current scope.
@@ -512,7 +512,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_bound_ident_reference(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         symbol_id: SymbolId,
         flags: ReferenceFlags,
     ) -> IdentifierReference<'a> {
@@ -524,7 +524,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_bound_ident_expr(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         symbol_id: SymbolId,
         flags: ReferenceFlags,
     ) -> Expression<'a> {
@@ -544,7 +544,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_unbound_ident_reference(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         flags: ReferenceFlags,
     ) -> IdentifierReference<'a> {
         let reference_id = self.create_unbound_reference(name.as_str(), flags);
@@ -555,7 +555,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_unbound_ident_expr(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         flags: ReferenceFlags,
     ) -> Expression<'a> {
         let ident = self.create_unbound_ident_reference(span, name, flags);
@@ -585,7 +585,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_ident_reference(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         symbol_id: Option<SymbolId>,
         flags: ReferenceFlags,
     ) -> IdentifierReference<'a> {
@@ -603,7 +603,7 @@ impl<'a, State> TraverseCtx<'a, State> {
     pub fn create_ident_expr(
         &mut self,
         span: Span,
-        name: Atom<'a>,
+        name: Ident<'a>,
         symbol_id: Option<SymbolId>,
         flags: ReferenceFlags,
     ) -> Expression<'a> {

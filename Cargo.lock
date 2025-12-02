@@ -2356,6 +2356,7 @@ dependencies = [
  "oxc_allocator",
  "oxc_ast_macros",
  "oxc_estree",
+ "rustc-hash",
  "serde",
 ]
 

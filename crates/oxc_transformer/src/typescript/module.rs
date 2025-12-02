@@ -1,7 +1,7 @@
 use oxc_allocator::TakeIn;
 use oxc_ast::{NONE, ast::*};
 use oxc_semantic::{Reference, SymbolFlags};
-use oxc_span::SPAN;
+use oxc_span::{Ident, SPAN};
 use oxc_syntax::reference::ReferenceFlags;
 use oxc_traverse::Traverse;
 
@@ -69,10 +69,13 @@ impl<'a> TypeScriptModule<'a, '_> {
         let module_exports = {
             let reference_id =
                 ctx.create_reference_in_current_scope("module", ReferenceFlags::Read);
-            let reference =
-                ctx.ast.alloc_identifier_reference_with_reference_id(SPAN, "module", reference_id);
+            let reference = ctx.ast.alloc_identifier_reference_with_reference_id(
+                SPAN,
+                Ident::new("module"),
+                reference_id,
+            );
             let object = Expression::Identifier(reference);
-            let property = ctx.ast.identifier_name(SPAN, "exports");
+            let property = ctx.ast.identifier_name(SPAN, Ident::new("exports"));
             ctx.ast.member_expression_static(SPAN, object, property, false)
         };
 
@@ -153,7 +156,7 @@ impl<'a> TypeScriptModule<'a, '_> {
                     ctx.scoping().find_binding(ctx.current_scope_id(), "require");
                 let callee = ctx.create_ident_expr(
                     SPAN,
-                    Atom::from("require"),
+                    Ident::new("require"),
                     require_symbol_id,
                     ReferenceFlags::Read,
                 );

@@ -57,7 +57,7 @@ use oxc_allocator::{Box as ArenaBox, StringBuilder as ArenaStringBuilder, TakeIn
 use oxc_ast::{NONE, ast::*};
 use oxc_ast_visit::Visit;
 use oxc_semantic::{ReferenceFlags, ScopeFlags, ScopeId, SymbolFlags};
-use oxc_span::{Atom, GetSpan, SPAN};
+use oxc_span::{Atom, GetSpan, Ident, SPAN};
 use oxc_syntax::{
     identifier::{is_identifier_name, is_identifier_part, is_identifier_start},
     keyword::is_reserved_keyword,
@@ -269,7 +269,7 @@ impl<'a, 'ctx> AsyncGeneratorExecutor<'a, 'ctx> {
         let callee = self.create_async_to_generator_call(params, body, generator_scope_id, ctx);
         let (callee, arguments) = if needs_move_parameters_to_inner_function {
             // callee.apply(this, arguments)
-            let property = ctx.ast.identifier_name(SPAN, "apply");
+            let property = ctx.ast.identifier_name(SPAN, Ident::new("apply"));
             let callee =
                 Expression::from(ctx.ast.member_expression_static(SPAN, callee, property, false));
 
@@ -277,7 +277,7 @@ impl<'a, 'ctx> AsyncGeneratorExecutor<'a, 'ctx> {
             let this_argument = Argument::from(ctx.ast.expression_this(SPAN));
             let arguments_argument = Argument::from(ctx.create_unbound_ident_expr(
                 SPAN,
-                Atom::new_const("arguments"),
+                Ident::new("arguments"),
                 ReferenceFlags::Read,
             ));
             (callee, ctx.ast.vec_from_array([this_argument, arguments_argument]))
@@ -550,7 +550,7 @@ impl<'a, 'ctx> AsyncGeneratorExecutor<'a, 'ctx> {
         match ctx.parent() {
             // infer `foo` from `const foo = async function() {}`
             Ancestor::VariableDeclaratorInit(declarator) => {
-                declarator.id().get_binding_identifier().map(|id| id.name)
+                declarator.id().get_binding_identifier().map(|id| id.name.into_atom())
             }
             // infer `foo` from `({ foo: async function() {} })`
             Ancestor::ObjectPropertyValue(property) if !*property.method() => {
@@ -654,7 +654,7 @@ impl<'a, 'ctx> AsyncGeneratorExecutor<'a, 'ctx> {
         let symbol_id = ctx.scoping().find_binding(ctx.current_scope_id(), "arguments");
         let arguments_ident = Argument::from(ctx.create_ident_expr(
             SPAN,
-            Atom::from("arguments"),
+            Ident::new("arguments"),
             symbol_id,
             ReferenceFlags::Read,
         ));
@@ -666,7 +666,7 @@ impl<'a, 'ctx> AsyncGeneratorExecutor<'a, 'ctx> {
         let callee = Expression::from(ctx.ast.member_expression_static(
             SPAN,
             bound_ident.create_read_expression(ctx),
-            ctx.ast.identifier_name(SPAN, "apply"),
+            ctx.ast.identifier_name(SPAN, Ident::new("apply")),
             false,
         ));
         let argument = ctx.ast.expression_call(SPAN, callee, NONE, arguments, false);

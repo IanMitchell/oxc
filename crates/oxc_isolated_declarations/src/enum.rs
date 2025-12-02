@@ -3,7 +3,7 @@ use rustc_hash::FxHashMap;
 use oxc_allocator::CloneIn;
 use oxc_ast::ast::*;
 use oxc_ecmascript::{ToInt32, ToUint32};
-use oxc_span::{Atom, GetSpan, SPAN};
+use oxc_span::{Atom, GetSpan, Ident, SPAN};
 use oxc_syntax::{
     number::{NumberBase, ToJsString},
     operator::{BinaryOperator, UnaryOperator},
@@ -54,7 +54,7 @@ impl<'a> IsolatedDeclarations<'a> {
 
                         // Infinity
                         let expr = if v.is_infinite() {
-                            self.ast.expression_identifier(SPAN, "Infinity")
+                            self.ast.expression_identifier(SPAN, Ident::new("Infinity"))
                         } else {
                             let value = if is_negative { -v } else { v };
                             self.ast.expression_numeric_literal(
@@ -123,7 +123,7 @@ impl<'a> IsolatedDeclarations<'a> {
                     return Some(ConstantValue::Number(f64::NAN));
                 }
 
-                if let Some(value) = prev_members.get(&ident.name) {
+                if let Some(value) = prev_members.get(&ident.name.into_atom()) {
                     return Some(value.clone());
                 }
 

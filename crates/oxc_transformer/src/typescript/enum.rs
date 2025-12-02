@@ -8,7 +8,7 @@ use oxc_ast_visit::{VisitMut, walk_mut};
 use oxc_data_structures::stack::NonEmptyStack;
 use oxc_ecmascript::{ToInt32, ToUint32};
 use oxc_semantic::{ScopeFlags, ScopeId};
-use oxc_span::{Atom, SPAN, Span};
+use oxc_span::{Atom, Ident, SPAN, Span};
 use oxc_syntax::{
     number::{NumberBase, ToJsString},
     operator::{AssignmentOperator, BinaryOperator, LogicalOperator, UnaryOperator},
@@ -86,8 +86,11 @@ impl<'a> TypeScriptEnum<'a> {
 
         let enum_name = decl.id.name;
         let func_scope_id = decl.scope_id();
-        let param_binding =
-            ctx.generate_binding(enum_name, func_scope_id, SymbolFlags::FunctionScopedVariable);
+        let param_binding = ctx.generate_binding(
+            enum_name.into_atom(),
+            func_scope_id,
+            SymbolFlags::FunctionScopedVariable,
+        );
 
         let id = param_binding.create_binding_pattern(ctx);
 
@@ -220,7 +223,8 @@ impl<'a> TypeScriptEnum<'a> {
         // if it's the first member, it will be `0`.
         // It used to keep track of the previous constant number.
         let mut prev_constant_number = Some(-1.0);
-        let mut previous_enum_members = self.enums.entry(param_binding.name).or_default().clone();
+        let mut previous_enum_members =
+            self.enums.entry(param_binding.name.into_atom()).or_default().clone();
 
         let mut prev_member_name = None;
 
@@ -238,7 +242,7 @@ impl<'a> TypeScriptEnum<'a> {
                         prev_constant_number = None;
 
                         IdentifierReferenceRename::new(
-                            param_binding.name,
+                            param_binding.name.into_atom(),
                             enum_scope_id,
                             previous_enum_members.clone(),
                             ctx,
@@ -309,7 +313,7 @@ impl<'a> TypeScriptEnum<'a> {
             statements.push(ast.statement_expression(member.span, expr));
         }
 
-        self.enums.insert(param_binding.name, previous_enum_members.clone());
+        self.enums.insert(param_binding.name.into_atom(), previous_enum_members.clone());
 
         let enum_ref = param_binding.create_read_expression(ctx);
         // return Foo;
@@ -331,7 +335,7 @@ impl<'a> TypeScriptEnum<'a> {
             let infinity_symbol_id = ctx.scoping().find_binding(ctx.current_scope_id(), "Infinity");
             ctx.create_ident_expr(
                 SPAN,
-                Atom::from("Infinity"),
+                Ident::from("Infinity"),
                 infinity_symbol_id,
                 ReferenceFlags::Read,
             )
@@ -375,7 +379,7 @@ impl<'a> TypeScriptEnum<'a> {
             match_member_expression!(Expression) => {
                 let expr = expr.to_member_expression();
                 let Expression::Identifier(ident) = expr.object() else { return None };
-                let members = self.enums.get(&ident.name)?;
+                let members = self.enums.get(&ident.name.into_atom())?;
                 let property = expr.static_property_name()?;
                 *members.get(property)?
             }
@@ -386,7 +390,7 @@ impl<'a> TypeScriptEnum<'a> {
                     return Some(ConstantValue::Number(f64::NAN));
                 }
 
-                if let Some(value) = prev_members.get(&ident.name) {
+                if let Some(value) = prev_members.get(&ident.name.into_atom()) {
                     return *value;
                 }
 
@@ -585,7 +589,7 @@ impl<'a, 'ctx> IdentifierReferenceRename<'a, 'ctx> {
 impl IdentifierReferenceRename<'_, '_> {
     fn should_reference_enum_member(&self, ident: &IdentifierReference<'_>) -> bool {
         // Don't need to rename the identifier if it's not a member of the enum,
-        if !self.previous_enum_members.contains_key(&ident.name) {
+        if !self.previous_enum_members.contains_key(&ident.name.into_atom()) {
             return false;
         }
 
@@ -638,7 +642,7 @@ impl<'a> VisitMut<'a> for IdentifierReferenceRename<'a, '_> {
     fn visit_expression(&mut self, expr: &mut Expression<'a>) {
         match expr {
             Expression::Identifier(ident) if self.should_reference_enum_member(ident) => {
-                let object = self.ctx.ast.expression_identifier(SPAN, self.enum_name);
+                let object = self.ctx.ast.expression_identifier(SPAN, Ident::from(self.enum_name));
                 let property = self.ctx.ast.identifier_name(SPAN, ident.name);
                 *expr = self.ctx.ast.member_expression_static(SPAN, object, property, false).into();
             }

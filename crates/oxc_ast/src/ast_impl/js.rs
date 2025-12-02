@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use oxc_span::{Atom, GetSpan, Span};
+use oxc_span::{Atom, GetSpan, Ident, Span};
 use oxc_syntax::{operator::UnaryOperator, scope::ScopeFlags};
 
 use crate::ast::*;
@@ -1259,7 +1259,7 @@ impl<'a> BindingPattern<'a> {
     /// - calling on `a = 1` in `let a = 1` would return `Some("a")`
     /// - calling on `a = 1` in `let {a = 1} = c` would return `Some("a")`
     /// - calling on `a: b` in `let {a: b} = c` would return `None`
-    pub fn get_identifier_name(&self) -> Option<Atom<'a>> {
+    pub fn get_identifier_name(&self) -> Option<Ident<'a>> {
         self.kind.get_identifier_name()
     }
 
@@ -1296,7 +1296,7 @@ impl<'a> BindingPatternKind<'a> {
     /// - calling on `a = 1` in `let a = 1` would return `Some("a")`
     /// - calling on `a = 1` in `let {a = 1} = c` would return `Some("a")`
     /// - calling on `a: b` in `let {a: b} = c` would return `None`
-    pub fn get_identifier_name(&self) -> Option<Atom<'a>> {
+    pub fn get_identifier_name(&self) -> Option<Ident<'a>> {
         match self {
             Self::BindingIdentifier(ident) => Some(ident.name),
             Self::AssignmentPattern(assign) => assign.left.get_identifier_name(),
@@ -1426,7 +1426,7 @@ impl ArrayPattern<'_> {
 impl<'a> Function<'a> {
     /// Returns this [`Function`]'s name, if it has one.
     #[inline]
-    pub fn name(&self) -> Option<Atom<'a>> {
+    pub fn name(&self) -> Option<Ident<'a>> {
         self.id.as_ref().map(|id| id.name)
     }
 
@@ -1582,7 +1582,7 @@ impl<'a> ArrowFunctionExpression<'a> {
 impl<'a> Class<'a> {
     /// Returns this [`Class`]'s name, if it has one.
     #[inline]
-    pub fn name(&self) -> Option<Atom<'a>> {
+    pub fn name(&self) -> Option<Ident<'a>> {
         self.id.as_ref().map(|id| id.name)
     }
 
@@ -1929,7 +1929,7 @@ impl<'a> ImportAttributeKey<'a> {
     /// Returns the string value of this import attribute key.
     pub fn as_atom(&self) -> Atom<'a> {
         match self {
-            Self::Identifier(identifier) => identifier.name,
+            Self::Identifier(identifier) => identifier.name.into_atom(),
             Self::StringLiteral(literal) => literal.value,
         }
     }
@@ -1990,8 +1990,8 @@ impl<'a> ModuleExportName<'a> {
     /// - `export { foo as "anything" }` => `"anything"`
     pub fn name(&self) -> Atom<'a> {
         match self {
-            Self::IdentifierName(identifier) => identifier.name,
-            Self::IdentifierReference(identifier) => identifier.name,
+            Self::IdentifierName(identifier) => identifier.name.into_atom(),
+            Self::IdentifierReference(identifier) => identifier.name.into_atom(),
             Self::StringLiteral(literal) => literal.value,
         }
     }
@@ -2003,7 +2003,7 @@ impl<'a> ModuleExportName<'a> {
     /// - `export { foo }` => `Some("foo")`
     /// - `export { foo as bar }` => `Some("bar")`
     /// - `export { foo as "anything" }` => `None`
-    pub fn identifier_name(&self) -> Option<Atom<'a>> {
+    pub fn identifier_name(&self) -> Option<Ident<'a>> {
         match self {
             Self::IdentifierName(identifier) => Some(identifier.name),
             Self::IdentifierReference(identifier) => Some(identifier.name),
