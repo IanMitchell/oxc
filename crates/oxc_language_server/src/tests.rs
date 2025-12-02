@@ -8,7 +8,7 @@ use tower_lsp_server::{
     lsp_types::*,
 };
 
-use crate::{Tool, ToolBuilder};
+use crate::{Tool, ToolBuilder, ToolRestartChanges};
 
 pub struct FakeToolBuilder;
 
@@ -21,6 +21,8 @@ impl ToolBuilder for FakeToolBuilder {
 pub struct FakeTool;
 
 pub const FAKE_COMMAND: &str = "fake.command";
+
+const WORKSPACE: &str = "file:///path/to/workspace";
 
 impl Tool for FakeTool {
     fn name(&self) -> &'static str {
@@ -52,8 +54,8 @@ impl Tool for FakeTool {
         _root_uri: &Uri,
         _old_options_json: &serde_json::Value,
         _new_options_json: serde_json::Value,
-    ) -> crate::ToolRestartChanges {
-        crate::ToolRestartChanges { tool: None, diagnostic_reports: None, watch_patterns: None }
+    ) -> ToolRestartChanges {
+        ToolRestartChanges { tool: None, diagnostic_reports: None, watch_patterns: None }
     }
 
     fn get_watcher_patterns(
@@ -68,11 +70,38 @@ impl Tool for FakeTool {
 
     fn handle_watched_file_change(
         &self,
-        _changed_uri: &Uri,
-        _root_uri: &Uri,
-        _options: serde_json::Value,
-    ) -> crate::ToolRestartChanges {
-        crate::ToolRestartChanges { tool: None, diagnostic_reports: None, watch_patterns: None }
+        changed_uri: &Uri,
+        root_uri: &Uri,
+        options: serde_json::Value,
+    ) -> ToolRestartChanges {
+        if changed_uri.as_str().ends_with("tool.config") {
+            return ToolRestartChanges {
+                tool: Some(FakeToolBuilder.build_boxed(root_uri, options)),
+                diagnostic_reports: None,
+                watch_patterns: None,
+            };
+        }
+        if changed_uri.as_str().ends_with("watcher.config") {
+            return ToolRestartChanges {
+                tool: None,
+                diagnostic_reports: None,
+                watch_patterns: Some(vec!["**/new_watcher.config".to_string()]),
+            };
+        }
+        if changed_uri.as_str().ends_with("diagnostics.config") {
+            return ToolRestartChanges {
+                tool: None,
+                diagnostic_reports: Some(vec![(
+                    changed_uri.to_string(),
+                    vec![Diagnostic {
+                        message: "Fake diagnostic".to_string(),
+                        ..Default::default()
+                    }],
+                )]),
+                watch_patterns: None,
+            };
+        }
+        ToolRestartChanges { tool: None, diagnostic_reports: None, watch_patterns: None }
     }
 }
 
@@ -166,16 +195,63 @@ impl TestServer {
         let res = self.responses.pop_back().unwrap();
         serde_json::from_str(&res).unwrap()
     }
+
+    /// Creates a new TestServer and performs the initialize and initialized sequence.
+    /// The `init` closure is used to create the LanguageServer instance.
+    async fn new_initialized<F, S>(init: F, initialize: Request) -> Self
+    where
+        F: FnOnce(Client) -> S,
+        S: LanguageServer,
+    {
+        let mut server = Self::new(init);
+        let initialize_id = initialize.id().cloned();
+        // Send initialize request
+        server.send_request(initialize).await;
+        let initialize_response = server.recv_response().await;
+        assert!(initialize_response.is_ok());
+        assert_eq!(Some(initialize_response.id()), initialize_id.as_ref());
+
+        // Send initialized notification
+        server.send_request(initialized_notification()).await;
+
+        server
+    }
+
+    async fn shutdown(&mut self, id: i64) {
+        self.send_request(shutdown_request(id)).await;
+        let shutdown_result = self.recv_response().await;
+        assert!(shutdown_result.is_ok());
+        assert_eq!(shutdown_result.id(), &Id::Number(id));
+    }
+
+    async fn shutdown_with_watchers(&mut self, id: i64) {
+        // shutdown request
+        self.send_request(shutdown_request(id)).await;
+
+        // watcher unregistration expected
+        acknowledge_unregistrations(self).await;
+
+        // shutdown response
+        let shutdown_result = self.recv_response().await;
+
+        assert!(shutdown_result.is_ok());
+        assert_eq!(shutdown_result.id(), &Id::Number(id));
+    }
 }
 
-fn initialize_request(workspace_configuration: bool, dynamic_watchers: bool) -> Request {
+fn initialize_request(
+    workspace_configuration: bool,
+    dynamic_watchers: bool,
+    workspace_edit: bool,
+) -> Request {
     let params = InitializeParams {
         workspace_folders: Some(vec![WorkspaceFolder {
-            uri: "file:///path/to/workspace".parse().unwrap(),
+            uri: WORKSPACE.parse().unwrap(),
             name: "workspace".to_string(),
         }]),
         capabilities: ClientCapabilities {
             workspace: Some(WorkspaceClientCapabilities {
+                apply_edit: Some(workspace_edit),
                 configuration: Some(workspace_configuration),
                 did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
                     dynamic_registration: Some(dynamic_watchers),
@@ -201,19 +277,89 @@ fn shutdown_request(id: i64) -> Request {
     Request::build("shutdown").id(id).finish()
 }
 
+fn execute_command_request(command: &str, arguments: &[serde_json::Value], id: i64) -> Request {
+    Request::build("workspace/executeCommand")
+        .id(id)
+        .params(json!({
+            "command": command,
+            "arguments": arguments,
+        }))
+        .finish()
+}
+
+fn workspace_folders_changed(
+    added: Vec<WorkspaceFolder>,
+    removed: Vec<WorkspaceFolder>,
+) -> Request {
+    let params =
+        DidChangeWorkspaceFoldersParams { event: WorkspaceFoldersChangeEvent { added, removed } };
+
+    Request::build("workspace/didChangeWorkspaceFolders").params(json!(params)).finish()
+}
+
+async fn acknowledge_registrations(server: &mut TestServer) {
+    // client/registerCapability request
+    let register_request = server.recv_notification().await;
+    assert_eq!(register_request.method(), "client/registerCapability");
+
+    // Acknowledge the registration
+    server.send_ack(register_request.id().unwrap()).await;
+}
+
+async fn acknowledge_unregistrations(server: &mut TestServer) {
+    // client/unregisterCapability request
+    let unregister_request = server.recv_notification().await;
+    assert_eq!(unregister_request.method(), "client/unregisterCapability");
+
+    // Acknowledge the unregistration
+    server.send_ack(unregister_request.id().unwrap()).await;
+}
+
+async fn response_to_configuration(
+    server: &mut TestServer,
+    configurations: Vec<serde_json::Value>,
+) {
+    let workspace_config_request = server.recv_notification().await;
+    assert_eq!(workspace_config_request.method(), "workspace/configuration");
+    server
+        .send_response(Response::from_ok(
+            workspace_config_request.id().unwrap().clone(),
+            json!(configurations),
+        ))
+        .await;
+}
+
+fn did_change_watched_files(uri: &str) -> Request {
+    Request::build("workspace/didChangeWatchedFiles")
+        .params(json!({
+            "changes": [
+                {
+                    "uri": uri,
+                    "type": 2 // Changed
+                }
+            ]
+        }))
+        .finish()
+}
+
 #[cfg(test)]
 mod test_suite {
     use serde_json::json;
     use tower_lsp_server::{
         jsonrpc::{Id, Response},
-        lsp_types::{InitializeResult, ServerInfo},
+        lsp_types::{
+            ApplyWorkspaceEditResponse, InitializeResult, ServerInfo, WorkspaceEdit,
+            WorkspaceFolder,
+        },
     };
 
     use crate::{
         backend::Backend,
         tests::{
-            FakeToolBuilder, TestServer, initialize_request, initialized_notification,
-            shutdown_request,
+            FAKE_COMMAND, FakeToolBuilder, TestServer, WORKSPACE, acknowledge_registrations,
+            acknowledge_unregistrations, did_change_watched_files, execute_command_request,
+            initialize_request, initialized_notification, response_to_configuration,
+            shutdown_request, workspace_folders_changed,
         },
     };
 
@@ -225,7 +371,7 @@ mod test_suite {
     async fn test_basic_start_and_shutdown_flow() {
         let mut server = TestServer::new(|client| Backend::new(client, server_info(), vec![]));
         // initialize request
-        server.send_request(initialize_request(false, false)).await;
+        server.send_request(initialize_request(false, false, false)).await;
         let initialize_result = server.recv_response().await;
 
         assert!(initialize_result.is_ok());
@@ -251,15 +397,11 @@ mod test_suite {
 
     #[tokio::test]
     async fn test_workspace_configuration_on_initialized() {
-        let mut server = TestServer::new(|client| Backend::new(client, server_info(), vec![]));
-
-        // initialize request
-        server.send_request(initialize_request(true, false)).await;
-        let initialize_result = server.recv_response().await;
-        assert!(initialize_result.is_ok());
-
-        // initialized notification
-        server.send_request(initialized_notification()).await;
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![]),
+            initialize_request(true, false, false),
+        )
+        .await;
 
         // workspace/configuration request
         let workspace_config_request = server.recv_notification().await;
@@ -270,7 +412,7 @@ mod test_suite {
             Some(&json!({
                 "items": [
                     {
-                        "scopeUri": "file:///path/to/workspace",
+                        "scopeUri":  WORKSPACE,
                         "section": "oxc_language_server"
                     }
                 ]
@@ -293,17 +435,11 @@ mod test_suite {
 
     #[tokio::test]
     async fn test_dynamic_watched_files_registration() {
-        let mut server = TestServer::new(|client| {
-            Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)])
-        });
-
-        // initialize request
-        server.send_request(initialize_request(false, true)).await;
-        let initialize_result = server.recv_response().await;
-        assert!(initialize_result.is_ok());
-
-        // initialized notification
-        server.send_request(initialized_notification()).await;
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, true, false),
+        )
+        .await;
 
         // client/registerCapability request
         let workspace_config_request = server.recv_notification().await;
@@ -314,13 +450,13 @@ mod test_suite {
             Some(&json!({
                 "registrations": [
                     {
-                        "id": "watcher-FakeTool-file:///path/to/workspace",
+                        "id": format!("watcher-FakeTool-{WORKSPACE}"),
                         "method": "workspace/didChangeWatchedFiles",
                         "registerOptions": {
                             "watchers": [
                                 {
                                     "globPattern": {
-                                        "baseUri": "file:///path/to/workspace",
+                                        "baseUri": WORKSPACE,
                                         "pattern": "**/fake.config",
                                     },
                                     "kind": 7
@@ -347,7 +483,7 @@ mod test_suite {
             Some(&json!({
                 "unregisterations": [
                     {
-                        "id": "watcher-FakeTool-file:///path/to/workspace",
+                        "id": format!("watcher-FakeTool-{WORKSPACE}"),
                         "method": "workspace/didChangeWatchedFiles",
                     }
                 ]
@@ -361,5 +497,256 @@ mod test_suite {
 
         assert!(shutdown_result.is_ok());
         assert_eq!(shutdown_result.id(), &Id::Number(2));
+    }
+
+    #[tokio::test]
+    async fn test_execute_workspace_command_with_apply_edit() {
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, false, true),
+        )
+        .await;
+
+        // execute command request
+        let execute_command_request =
+            execute_command_request(FAKE_COMMAND, &[json!({"some_option": true})], 3);
+        server.send_request(execute_command_request).await;
+
+        // workspace apply edit request
+        let apply_edit_request = server.recv_notification().await;
+        assert_eq!(apply_edit_request.method(), "workspace/applyEdit");
+        assert_eq!(
+            apply_edit_request.params(),
+            Some(&json!({
+                "edit": WorkspaceEdit::default(),
+            }))
+        );
+
+        // Acknowledge the apply edit
+        server
+            .send_response(Response::from_ok(
+                apply_edit_request.id().unwrap().clone(),
+                json!(ApplyWorkspaceEditResponse {
+                    applied: true,
+                    failure_reason: None,
+                    failed_change: None
+                }),
+            ))
+            .await;
+
+        // execute command response
+        let execute_command_response = server.recv_response().await;
+        assert!(execute_command_response.is_ok());
+        assert!(execute_command_response.result().is_some());
+        assert!(execute_command_response.id() == &Id::Number(3));
+        assert_eq!(execute_command_response.result().unwrap(), &json!(null));
+
+        // shutdown request
+        server.shutdown_with_watchers(4).await;
+    }
+
+    #[tokio::test]
+    async fn test_execute_workspace_command_with_no_edit() {
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, false, false),
+        )
+        .await;
+
+        // execute command request with no arguments
+        let execute_command_request = execute_command_request(FAKE_COMMAND, &[], 3);
+        server.send_request(execute_command_request).await;
+
+        // Should get a direct response with null result (no workspace edit)
+        let execute_command_response = server.recv_response().await;
+        assert!(execute_command_response.is_ok());
+        assert_eq!(execute_command_response.id(), &Id::Number(3));
+        assert_eq!(execute_command_response.result().unwrap(), &json!(null));
+
+        // shutdown request
+        server.shutdown_with_watchers(4).await;
+    }
+
+    #[tokio::test]
+    async fn test_execute_workspace_command_with_invalid_command() {
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, false, false),
+        )
+        .await;
+
+        // execute command request with an invalid command
+        let execute_command_request = execute_command_request("invalid.command", &[], 3);
+        server.send_request(execute_command_request).await;
+
+        // Should not return an error, but a null result
+        let execute_command_response = server.recv_response().await;
+        assert!(execute_command_response.is_ok());
+        assert_eq!(execute_command_response.id(), &Id::Number(3));
+        assert_eq!(execute_command_response.result().unwrap(), &json!(null));
+
+        server.shutdown_with_watchers(4).await;
+    }
+
+    #[tokio::test]
+    async fn test_workspace_added() {
+        // workspace/didChangeWorkspaceFolders notification
+        let folders_changed_notification = workspace_folders_changed(
+            vec![WorkspaceFolder {
+                uri: "file:///path/to/new_folder".parse().unwrap(),
+                name: "new_folder".to_string(),
+            }],
+            vec![],
+        );
+
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, false, false),
+        )
+        .await;
+        server.send_request(folders_changed_notification).await;
+
+        // No direct response expected for notifications, client does not support workspace configuration or watchers
+        server.shutdown_with_watchers(3).await;
+    }
+
+    #[tokio::test]
+    async fn test_workspace_added_watchers() {
+        // workspace/didChangeWorkspaceFolders notification
+        let folders_changed_notification = workspace_folders_changed(
+            vec![WorkspaceFolder {
+                uri: "file:///path/to/new_folder".parse().unwrap(),
+                name: "new_folder".to_string(),
+            }],
+            vec![],
+        );
+
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, true, false),
+        )
+        .await;
+        acknowledge_registrations(&mut server).await;
+        server.send_request(folders_changed_notification).await;
+
+        // new watcher registration expected
+        acknowledge_registrations(&mut server).await;
+        server.shutdown_with_watchers(4).await;
+    }
+
+    #[tokio::test]
+    async fn test_workspace_added_configuration() {
+        // workspace/didChangeWorkspaceFolders notification
+        let folders_changed_notification = workspace_folders_changed(
+            vec![WorkspaceFolder {
+                uri: "file:///path/to/new_folder".parse().unwrap(),
+                name: "new_folder".to_string(),
+            }],
+            vec![],
+        );
+
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(true, false, false),
+        )
+        .await;
+        // workspace configuration request expected, one for initial workspace
+        response_to_configuration(&mut server, vec![json!(null)]).await;
+
+        server.send_request(folders_changed_notification).await;
+
+        // workspace configuration request expected, one for new folder
+        response_to_configuration(&mut server, vec![json!(null)]).await;
+
+        server.shutdown_with_watchers(4).await;
+    }
+
+    #[tokio::test]
+    async fn test_workspace_removed() {
+        // workspace/didChangeWorkspaceFolders notification
+        let folders_changed_notification = workspace_folders_changed(
+            vec![],
+            vec![WorkspaceFolder {
+                uri: WORKSPACE.parse().unwrap(),
+                name: "workspace".to_string(),
+            }],
+        );
+
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, false, false),
+        )
+        .await;
+        server.send_request(folders_changed_notification).await;
+
+        // No direct response expected for notifications, client does not support watchers
+        server.shutdown(2).await;
+    }
+
+    #[tokio::test]
+    async fn test_workspace_removed_watchers() {
+        // workspace/didChangeWorkspaceFolders notification
+        let folders_changed_notification = workspace_folders_changed(
+            vec![],
+            vec![WorkspaceFolder {
+                uri: WORKSPACE.parse().unwrap(),
+                name: "workspace".to_string(),
+            }],
+        );
+
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, true, false),
+        )
+        .await;
+        acknowledge_registrations(&mut server).await;
+        server.send_request(folders_changed_notification).await;
+
+        // watcher unregistration expected
+        acknowledge_unregistrations(&mut server).await;
+
+        server.shutdown(2).await;
+    }
+
+    #[tokio::test]
+    async fn test_watched_file_changed_unknown() {
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, true, false),
+        )
+        .await;
+        acknowledge_registrations(&mut server).await;
+
+        // Simulate a watched file change notification
+        let file_change_notification =
+            did_change_watched_files(format!("{WORKSPACE}/unknown.file").as_str());
+        server.send_request(file_change_notification).await;
+
+        // Since FakeToolBuilder does not know about "unknown.file", no diagnostics or registrations are expected
+        // Thus, no further requests or responses should occur
+
+        server.shutdown_with_watchers(3).await;
+    }
+
+    #[tokio::test]
+    async fn test_watched_file_changed_new_watchers() {
+        let mut server = TestServer::new_initialized(
+            |client| Backend::new(client, server_info(), vec![Box::new(FakeToolBuilder)]),
+            initialize_request(false, true, false),
+        )
+        .await;
+        acknowledge_registrations(&mut server).await;
+
+        // Simulate a watched file change notification for "watcher.config"
+        let file_change_notification =
+            did_change_watched_files(format!("{WORKSPACE}/watcher.config").as_str());
+        server.send_request(file_change_notification).await;
+
+        // Old watcher unregistration expected
+        acknowledge_unregistrations(&mut server).await;
+        // New watcher registration expected
+        acknowledge_registrations(&mut server).await;
+
+        server.shutdown_with_watchers(3).await;
     }
 }
