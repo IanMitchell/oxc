@@ -108,7 +108,11 @@ impl TestRunner {
 
         let passed = total_tested_file_count - total_failed_file_count;
         #[expect(clippy::cast_precision_loss)]
-        let percentage = (passed as f64 / total_tested_file_count as f64) * 100.0;
+        let percentage = if total_tested_file_count == 0 {
+            0.0
+        } else {
+            (passed as f64 / total_tested_file_count as f64) * 100.0
+        };
         let summary = format!(
             "{test_lang} compatibility: {passed}/{total_tested_file_count} ({percentage:.2}%)"
         );
@@ -215,7 +219,6 @@ impl TestRunner {
                 // Skip all options that are not supported yet
                 !options.experimental_operator_position.is_start()
                     && !options.experimental_ternaries
-                    && !options.quote_properties.is_consistent()
             })
             .collect::<Vec<_>>();
 

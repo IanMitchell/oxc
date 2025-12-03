@@ -9,6 +9,7 @@ use crate::{
         trivia::format_dangling_comments,
     },
     options::Expand,
+    utils::object::{should_force_quotes_for_object, should_force_quotes_for_type_literal},
     write,
     write::parameters::{get_this_param, should_hug_function_parameters},
 };
@@ -73,10 +74,25 @@ impl<'a> ObjectLike<'a, '_> {
     }
 
     fn write_members(&self, f: &mut Formatter<'_, 'a>) {
+        // For consistent quote mode, check if any property requires quotes
+        // and set the force_quotes flag accordingly
+        let force_quotes = match self {
+            Self::ObjectExpression(o) => should_force_quotes_for_object(&o.as_ref().properties, f),
+            Self::TSTypeLiteral(o) => should_force_quotes_for_type_literal(&o.as_ref().members, f),
+        };
+
+        // Save the previous state and set the new state
+        let previous_force_quotes = f.context().force_quotes_for_object_properties();
+        f.context().set_force_quotes_for_object_properties(force_quotes);
+
+        // Format the members
         match self {
             Self::ObjectExpression(o) => o.properties().fmt(f),
             Self::TSTypeLiteral(o) => o.members().fmt(f),
         }
+
+        // Restore the previous state (for nested objects)
+        f.context().set_force_quotes_for_object_properties(previous_force_quotes);
     }
 }
 

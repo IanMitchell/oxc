@@ -15,6 +15,9 @@ pub enum StringLiteralParentKind {
     Expression,
     /// Variant to track tokens that are inside a member
     Member,
+    /// Variant to track tokens that are inside a member, but force quotes to be kept
+    /// (used for consistent quoting mode when at least one property requires quotes)
+    MemberForceQuotes,
     /// Variant to track tokens that are inside an import attribute
     #[expect(unused)]
     ImportAttribute,
@@ -187,7 +190,9 @@ impl<'a> LiteralStringNormalizer<'a> {
     fn normalize_text(&self, source_type: SourceType) -> Cow<'a, str> {
         let str_info = self.token.compute_string_information(self.chosen_quote_style);
         match self.token.parent_kind {
-            StringLiteralParentKind::Expression => self.normalize_string_literal(str_info),
+            StringLiteralParentKind::Expression | StringLiteralParentKind::MemberForceQuotes => {
+                self.normalize_string_literal(str_info)
+            }
             StringLiteralParentKind::Directive => self.normalize_directive(str_info),
             StringLiteralParentKind::ImportAttribute => self.normalize_import_attribute(str_info),
             StringLiteralParentKind::Member => self.normalize_type_member(str_info, source_type),
