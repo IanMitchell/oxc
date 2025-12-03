@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use oxc_allocator::Allocator;
 use oxc_ast::Comment;
 use oxc_span::{GetSpan, SourceType, Span};
@@ -25,6 +27,10 @@ pub struct FormatContext<'ast> {
     allocator: &'ast Allocator,
 
     embedded_formatter: Option<EmbeddedFormatter>,
+
+    /// When true, string literal property keys should preserve their quotes.
+    /// This is used for consistent quote mode when at least one property requires quotes.
+    force_quotes_for_object_properties: Cell<bool>,
 }
 
 impl std::fmt::Debug for FormatContext<'_> {
@@ -57,6 +63,7 @@ impl<'ast> FormatContext<'ast> {
             allocator,
             cached_elements: FxHashMap::default(),
             embedded_formatter,
+            force_quotes_for_object_properties: Cell::new(false),
         }
     }
 
@@ -69,6 +76,7 @@ impl<'ast> FormatContext<'ast> {
             allocator,
             cached_elements: FxHashMap::default(),
             embedded_formatter: None,
+            force_quotes_for_object_properties: Cell::new(false),
         }
     }
 
@@ -114,5 +122,17 @@ impl<'ast> FormatContext<'ast> {
 
     pub fn allocator(&self) -> &'ast Allocator {
         self.allocator
+    }
+
+    /// Returns whether property keys should be forced to keep quotes.
+    /// Used for consistent quote mode when at least one property requires quotes.
+    pub fn force_quotes_for_object_properties(&self) -> bool {
+        self.force_quotes_for_object_properties.get()
+    }
+
+    /// Sets whether property keys should be forced to keep quotes.
+    /// Used for consistent quote mode when at least one property requires quotes.
+    pub fn set_force_quotes_for_object_properties(&self, value: bool) {
+        self.force_quotes_for_object_properties.set(value);
     }
 }

@@ -98,6 +98,7 @@ pub enum EndOfLineConfig {
 pub enum QuotePropsConfig {
     #[default]
     AsNeeded,
+    Consistent,
     Preserve,
 }
 
@@ -297,10 +298,10 @@ impl Oxfmtrc {
         }
 
         // [Prettier] quoteProps: "as-needed" | "consistent" | "preserve"
-        // NOTE: "consistent" is not supported
         if let Some(props) = self.quote_props {
             options.quote_properties = match props {
                 QuotePropsConfig::AsNeeded => QuoteProperties::AsNeeded,
+                QuotePropsConfig::Consistent => QuoteProperties::Consistent,
                 QuotePropsConfig::Preserve => QuoteProperties::Preserve,
             };
         }

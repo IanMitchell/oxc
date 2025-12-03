@@ -252,7 +252,9 @@ impl<'a> Format<'a> for AstNode<'a, Vec<'a, ImportAttribute<'a>>> {
 impl<'a> FormatWrite<'a> for AstNode<'a, ImportAttribute<'a>> {
     fn write(&self, f: &mut Formatter<'_, 'a>) {
         if let AstNodes::StringLiteral(s) = self.key().as_ast_nodes() {
-            if f.options().quote_properties == QuoteProperties::AsNeeded
+            // Import attributes follow as-needed behavior for both AsNeeded and Consistent modes.
+            // Only Preserve mode keeps the original quoting.
+            if f.options().quote_properties != QuoteProperties::Preserve
                 && is_identifier_name(s.value().as_str())
             {
                 text(s.value().as_str()).fmt(f);

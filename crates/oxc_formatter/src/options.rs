@@ -528,7 +528,7 @@ pub enum QuoteProperties {
     AsNeeded,
     /// Respect the input use of quotes in object properties.
     Preserve,
-    /// If at least one property in an object requires quotes, quote all properties. [**NOT SUPPORTED YET**]
+    /// If at least one property in an object requires quotes, quote all properties.
     Consistent,
 }
 

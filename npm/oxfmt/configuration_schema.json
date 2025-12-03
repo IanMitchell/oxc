@@ -196,6 +196,7 @@
       "type": "string",
       "enum": [
         "as-needed",
+        "consistent",
         "preserve"
       ]
     },

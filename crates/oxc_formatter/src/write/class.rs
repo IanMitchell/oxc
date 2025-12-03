@@ -18,7 +18,7 @@ use crate::{
     utils::{
         assignment_like::AssignmentLike,
         format_node_without_trailing_comments::FormatNodeWithoutTrailingComments,
-        object::format_property_key,
+        object::{format_property_key, should_force_quotes_for_class_body},
     },
     write,
     write::{function::should_group_function_parameters, semicolon::OptionalSemicolon},
@@ -37,6 +37,14 @@ impl<'a> FormatWrite<'a> for AstNode<'a, ClassBody<'a>> {
 
 impl<'a> Format<'a> for AstNode<'a, Vec<'a, ClassElement<'a>>> {
     fn fmt(&self, f: &mut Formatter<'_, 'a>) {
+        // For consistent quote mode, check if any property requires quotes
+        // and set the force_quotes flag accordingly
+        let force_quotes = should_force_quotes_for_class_body(self.as_ref(), f);
+
+        // Save the previous state and set the new state
+        let previous_force_quotes = f.context().force_quotes_for_object_properties();
+        f.context().set_force_quotes_for_object_properties(force_quotes);
+
         // Join class elements with hard line breaks between them
         let mut join = f.join_nodes_with_hardline();
         // Iterate through pairs of consecutive elements to handle semicolons properly
@@ -45,6 +53,9 @@ impl<'a> Format<'a> for AstNode<'a, Vec<'a, ClassElement<'a>>> {
         while let Some(element) = iter.next() {
             join.entry(element.span(), &(element, iter.peek().copied()));
         }
+
+        // Restore the previous state (for nested classes)
+        f.context().set_force_quotes_for_object_properties(previous_force_quotes);
     }
 }
 
